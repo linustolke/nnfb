@@ -2,6 +2,6 @@
 
 = How to start =
 
-# B
-# As Address - give your facebook name - as written in the url.
-# As the Token, get one from Graph API Explorer.
+  # B
+  # As Address - give your facebook name - as written in the url.
+  # As the Token, get one from Graph API Explorer.
