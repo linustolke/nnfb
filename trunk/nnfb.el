@@ -112,7 +112,8 @@ each session in an assoc list")
 (defvar nnfb-all-group-mappings nil
   "Assoc list with groups and vectors of id:s.
 
-The vector's first element is the first free element of the vector itself.")
+The vector's first element is the number of the first free element 
+of the vector itself.")
 
 (defun nnfb-set-current-group (name)
   "Change the group"
