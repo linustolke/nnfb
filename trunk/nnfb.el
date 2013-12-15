@@ -257,7 +257,7 @@ This assumes that there is a current group already set."
   (message "nnfb-request-group %s %s %S %S" group server fast info)
   (nnfb-set-current-group group)
   (if fast
-      nil
+      t
     (let* ((token (nnfb-get-token server))
            (id (nnfb-name-to-id group))
            (first-result
@@ -281,7 +281,7 @@ This assumes that there is a current group already set."
                        (nnfb-get-group-information-first)
                        (nnfb-get-group-information-last)
                        group))
-        nil))))
+        (nnfb-get-group-information-count)))))
 
 (defun nnfb-close-group (&rest rest)
   "Required function"
