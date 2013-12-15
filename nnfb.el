@@ -84,7 +84,10 @@ each session in an assoc list")
          (buffer
           (url-retrieve-synchronously
            (url-generic-parse-url
-            (concat "https://graph.facebook.com/" what add-for-token)))))
+            (let ((url (concat "https://graph.facebook.com/"
+                               what add-for-token)))
+              (message "Retrieving: %s" url)
+              url)))))
     (let (result)
       (save-excursion
         (set-buffer buffer)
@@ -95,7 +98,15 @@ each session in an assoc list")
           (nnheader-report 'nnfb
                            "No contents was returned for %s. Result was %s"
                            what (buffer-string))))
+      (message "Got: %s" result)
       ;; (kill-buffer buffer)
+      (let ((error (assoc "error" result)))
+        (if error
+            (let* ((contents (cdr error))
+                   (messpair (assoc "message" contents))
+                   (mess (cdr messpair)))
+              (message "%s" mess)
+              (sit-for 1))))
       result)))
 
 (defmacro nnfb-direct-output (&rest do)
@@ -137,7 +148,7 @@ This assumes that there is a current group already set."
       nil
     (signal 'no-current-group-set))
   (or (gethash "id" nnfb-current-group-information)
-      (let* ((a (assoc name nnfb-all-group-mappings))
+      (let* ((a (assoc nnfb-current-group-name nnfb-all-group-mappings))
              (mapping (cdr a))
              pos)
         ;; Create a new empty vector if not already
@@ -146,7 +157,7 @@ This assumes that there is a current group already set."
           (setq mapping (make-vector 10 nil))
           (aset mapping 0 1))
         ;; Grow the vector if filled
-        (if (aref (1- (length mapping)) mapping)
+        (if (aref mapping (1- (length mapping)))
             (setq mapping (apply (function vector)
                                  (append mapping (make-vector 100 nil)))))
         ;; Add the new element
@@ -159,7 +170,7 @@ This assumes that there is a current group already set."
           (setq nnfb-all-group-mappings
                 (cons (cons a mapping) nnfb-all-group-mappings)))
         ;; Store the id in the hash
-        (puthash nnfb-current-group-information id pos)
+        (puthash id pos nnfb-current-group-information)
         pos)))
         
 
@@ -261,8 +272,8 @@ This assumes that there is a current group already set."
 
 (defun nnfb-name-to-id (name)
   "Converts an Gnus group name to an id."
-  (string-match "\\(friends\\)\\.\\([0-9][0-9]*\\)\\..*" name)
-  (match-string 2))
+  (string-match "\\(friend\\)\\.\\([0-9][0-9]*\\)\\..*" name)
+  (match-string 2 name))
 
 (defun nnfb-request-list (server)
   "Required function"
