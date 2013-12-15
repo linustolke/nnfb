@@ -20,7 +20,7 @@ each session in an assoc list")
       (nnheader-report 'nnfb "Cannot find server %s" server))))
 
 (defun nnfb-pyread ()
-  "Read a python struct from the current buffer."
+  "Read a python struct from the current buffer and return a lisp structure."
   (cond
    ((looking-at "\"")
     (read))
@@ -66,10 +66,18 @@ each session in an assoc list")
           nnheader-report 'nnfb "Expecting comma or closing bracket, found %s" (read))))
       (forward-char)
       (apply (function vector) (reverse found))))
+   ((looking-at "true")
+    (prog1
+        t
+      (goto-char (match-end 0))))
+   ((looking-at "false")
+    (prog1
+        nil
+      (goto-char (match-end 0))))
    (t
     (nnheader-report 'nnfb "Unknown opening" (read)))))
-    
 
+    
 (defun nnfb-get (what &optional token)
   (message "nnfb-get %s" what)
   (let* (done
@@ -110,6 +118,7 @@ each session in an assoc list")
       result)))
 
 (defmacro nnfb-direct-output (&rest do)
+  "Output things in nntp-server-buffer."
   `(let ((standard-output nntp-server-buffer))
      (save-excursion
        (set-buffer nntp-server-buffer)
@@ -119,7 +128,11 @@ each session in an assoc list")
 
 (defvar nnfb-current-group-name nil)
 (defvar nnfb-current-group-information (make-hash-table :test 'equal)
-  "The hash table contains all id:s")
+  "The hash table contains all id:s.
+
+This is reset and recalculated from nnfb-all-group-mappings whenever
+the current group is changed.")
+
 (defvar nnfb-all-group-mappings nil
   "Assoc list with groups and vectors of id:s.
 
@@ -127,7 +140,7 @@ The vector's first element is the number of the first free element
 of the vector itself.")
 
 (defun nnfb-set-current-group (name)
-  "Change the group"
+  "Change the group."
   (if (string= name nnfb-current-group-name)
       nil
     (setq nnfb-current-group-name nil)
@@ -142,7 +155,7 @@ of the vector itself.")
     (setq nnfb-current-group-name name)))
 
 (defun nnfb-get-index (id)
-  "Get or allocate the gnus number in the group.
+  "Get or allocate the gnus index number in the group.
 This assumes that there is a current group already set."
   (if nnfb-current-group-name
       nil
@@ -173,6 +186,16 @@ This assumes that there is a current group already set."
         (puthash id pos nnfb-current-group-information)
         pos)))
         
+(defun nnfb-get-group-information-count ()
+  "Calculate the count of the current group."
+  (hash-table-count nnfb-current-group-information))
+
+(defun nnfb-get-group-information-first ()
+  1)
+
+(defun nnfb-get-group-information-last ()
+  (nnfb-get-group-information-count))
+
 
 ;;; Interface functions
 (nnoo-define-basics nnfb)
@@ -252,12 +275,13 @@ This assumes that there is a current group already set."
                          (mapc (function nnfb-get-index)
                                (cdr (assoc "data" comments)))))))
        (cdr (assoc "data" (cdr (assoc "feed" first-result)))))
-      (setq count (aref (cdr (assoc group nnfb-all-group-mappings)) 0))
       (nnfb-direct-output
-        (princ (format "210 %d 1 %d %s\n"
-                       count count
-                       gnus-name)))
-      count)))
+        (princ (format "211 %d %d %d %s\n"
+                       (nnfb-get-group-information-count)
+                       (nnfb-get-group-information-first)
+                       (nnfb-get-group-information-last)
+                       group))
+        nil))))
 
 (defun nnfb-close-group (&rest rest)
   "Required function"
