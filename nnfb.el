@@ -200,10 +200,37 @@ This assumes that there is a current group already set."
 ;;; Interface functions
 (nnoo-define-basics nnfb)
 
-(defun nnfb-retrieve-headers (&rest rest)
-  "Required function"
-  (message "nnfb-retrieve-headers %S" rest)
+(defun nnfb-create-nov-entry (message articles fetch-old)
+  "Convert the MESSAGE into a nov entry.
+If the MESSAGE is in ARTICLES or FETCH-OLD is true.
+Returns a sequence of ARTICLES without the found entry."
   (signal 'not-implemented-yet nil))
+
+(defun nnfb-retrieve-headers (articles &optional group server fetch-old)
+  "Retrieve headers."
+  (message "nnfb-retrieve-headers %S %S %S %S" articles group server fetch-old)
+  (let* ((token (nnfb-get-token server))
+         (feed (nnfb-name-to-id group))
+         (result (nnfb-get (format "%s?fields=feed" feed) token)))
+    (while (and articles
+                result
+                (assoc "feed" result))
+      (let* ((result-feed-pair (assoc "feed" result))
+             (result-data-pair (assoc "data" (cdr result-feed-pair)))
+             (arr (cdr result-data-pair)))
+        (mapc (function
+               (lambda (mess)
+                 (setq articles (nnfb-create-nov-entry mess 
+                                                       articles
+                                                       fetch-old))))
+              arr)
+        (let* ((result-paging-pair (assoc "paging" result))
+               (result-next-pair (assoc "next" (cdr result-paging-pair)))
+               (next (cdr result-next-pair))
+               (str (progn
+                      (string-match "^https?://[^/]*/\\(.*\))$" next)
+                      (match-string 1 next))))
+          (setq result (nnfb-get str token)))))))
 
 (defun nnfb-open-server (server &rest definitions)
   "Required function"
