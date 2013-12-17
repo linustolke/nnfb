@@ -160,7 +160,7 @@ This assumes that there is a current group already set."
   (if nnfb-current-group-name
       nil
     (signal 'no-current-group-set))
-  (or (gethash "id" nnfb-current-group-information)
+  (or (gethash id nnfb-current-group-information)
       (let* ((a (assoc nnfb-current-group-name nnfb-all-group-mappings))
              (mapping (cdr a))
              pos)
@@ -172,7 +172,7 @@ This assumes that there is a current group already set."
         ;; Grow the vector if filled
         (if (aref mapping (1- (length mapping)))
             (setq mapping (apply (function vector)
-                                 (append mapping (make-vector 100 nil)))))
+                                 (append mapping (make-list 100 nil)))))
         ;; Add the new element
         (setq pos (aref mapping 0))
         (aset mapping pos id)
@@ -181,7 +181,8 @@ This assumes that there is a current group already set."
         (if a
             (setcdr a mapping)
           (setq nnfb-all-group-mappings
-                (cons (cons a mapping) nnfb-all-group-mappings)))
+                (cons (cons nnfb-current-group-name mapping)
+                      nnfb-all-group-mappings)))
         ;; Store the id in the hash
         (puthash id pos nnfb-current-group-information)
         pos)))
@@ -204,7 +205,23 @@ This assumes that there is a current group already set."
   "Convert the MESSAGE into a nov entry.
 If the MESSAGE is in ARTICLES or FETCH-OLD is true.
 Returns a sequence of ARTICLES without the found entry."
-  (signal 'not-implemented-yet nil))
+  (let ((index (nnfb-get-index (cdr (assoc "id" message)))))
+    (if (or fetch-old
+            (memq index articles))
+        (nnfb-direct-output
+          (princ (format "%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
+                         index
+                         "subject"
+                         "from"
+                         "date"
+                         "id"
+                         "refernces"
+                         "chars"
+                         "lines"
+                         "xref"
+                         "extra"))))
+    (remq index articles)))
+          
 
 (defun nnfb-retrieve-headers (articles &optional group server fetch-old)
   "Retrieve headers."
@@ -224,13 +241,14 @@ Returns a sequence of ARTICLES without the found entry."
                                                        articles
                                                        fetch-old))))
               arr)
-        (let* ((result-paging-pair (assoc "paging" result))
+        (let* ((result-paging-pair (assoc "paging" (cdr result-feed-pair)))
                (result-next-pair (assoc "next" (cdr result-paging-pair)))
                (next (cdr result-next-pair))
                (str (progn
-                      (string-match "^https?://[^/]*/\\(.*\))$" next)
+                      (string-match "^https?://[^/]*/\\(.*\\)$" next)
                       (match-string 1 next))))
-          (setq result (nnfb-get str token)))))))
+          (setq result (nnfb-get str token)))))
+    'nov))
 
 (defun nnfb-open-server (server &rest definitions)
   "Required function"
@@ -292,7 +310,7 @@ Returns a sequence of ARTICLES without the found entry."
                               "?fields=feed.limit(200)."
                               "fields(comments.fields(id),id)")
                       token)))
-      (message "Found %S" result)
+      (message "Found %S" first-result)
       ;; Allocate id:s to local number.
       (mapc
        (function (lambda (l)
@@ -311,8 +329,7 @@ Returns a sequence of ARTICLES without the found entry."
         (nnfb-get-group-information-count)))))
 
 (defun nnfb-close-group (&rest rest)
-  "Required function"
-  (signal 'not-implemented-yet nil))
+  "Required function")
 
 (defun nnfb-friend-to-name (list)
   "Converts an fb friend list to a Gnus name."
