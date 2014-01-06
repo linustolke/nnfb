@@ -63,7 +63,7 @@ each session in an assoc list")
           (forward-char))
          ((looking-at (regexp-quote "]")))
          (t
-          nnheader-report 'nnfb "Expecting comma or closing bracket, found %s" (read))))
+          (nnheader-report 'nnfb "Expecting comma or closing bracket, found %s" (read)))))
       (forward-char)
       (apply (function vector) (reverse found))))
    ((looking-at "true")
@@ -151,7 +151,7 @@ of the vector itself.")
       (if mapping
           (let ((i 1))
             (while (< i (aref mapping 0))
-              (puthash id i nnfb-current-group-information)
+              (puthash (aref mapping i) i nnfb-current-group-information)
               (setq i (1+ i))))))
     (setq nnfb-current-group-name name)))
 
@@ -210,7 +210,9 @@ Returns a sequence of ARTICLES without the found entry.
 Expects the standard-output to be set up."
   (let* ((id (cdr (assoc "id" message)))
          (index (nnfb-get-index id))
-         (text (cdr (assoc "message" message)))
+         (text (or (cdr (assoc "message" message))
+                   (cdr (assoc "description" message))
+                   (cdr (assoc "story" message))))
          (beg (if (> (length text) 70)
                   (substring text 0 60)
                 text))
@@ -303,6 +305,14 @@ Expects the standard-output to be set up."
   (let ((pair (assoc server nnfb-sessions)))
     (cdr pair)))
 
+(defun nnfb-join-string (elements)
+  "Join the elements in elements into a comma-separated string"
+  (apply (function concat)
+         (apply (function append)
+                (list (car elements))
+                (mapcar (function (lambda (element) (list ", " element)))
+                        (cdr elements)))))
+
 (defun nnfb-request-article (article &optional group server to-buffer)
   "Required function."
   (let* ((id (cond
@@ -315,26 +325,50 @@ Expects the standard-output to be set up."
     (let ((standard-output buffer))
       (save-excursion
         (set-buffer buffer)
-        (mapc
-         (function
-          (lambda (pair)
-            (cond
-             ((string= "id" (car pair)))
-             ((string= "comment" (car pair)))
-             ((string= "actions" (car pair)))
-             ((string= "from" (car pair))
-              (princ (format "%s\n" (cdr (assoc "name" (cdr pair))))))
-             ((string= "to" (car pair))
-              (princ "To:")
-              (mapc
-               (function
-                (lambda (person)
-                  (princ (format " %s," (cdr (assoc "name" person))))))
-               (cdr (assoc "data" (cdr pair))))
-              (princ "\n"))
-             (t
-              (princ (format "Unhandled data: %S\n" pair))))))
-         request)))))
+        (let (unhandled body)
+          (mapc
+           (function
+            (lambda (pair)
+              (cond
+               ((string= "id" (car pair)))
+               ((string= "comment" (car pair)))
+               ((string= "actions" (car pair)))
+               ((string= "from" (car pair))
+                (princ "From: ")
+                (princ (format "%s\n" (cdr (assoc "name" (cdr pair))))))
+               ((string= "to" (car pair))
+                (princ "To: ")
+                (princ
+                 (nnfb-join-string
+                  (mapcar
+                   (function
+                    (lambda (person)
+                      (cdr (assoc "name" person))))
+                   (cdr (assoc "data" (cdr pair))))))
+                (princ "\n"))
+               ((string= "message" (car pair))
+                (setq body (cdr pair)))
+               ((string= "updated_time" (car pair))
+                (princ "Date: ")
+                (princ (cdr pair))
+                (princ "\n"))
+               ((string= "created_time" (car pair)))
+               ((and (string= "type" (car pair))
+                     (string= "status" (cdr pair))))
+               (t
+                (setq unhandled (cons pair unhandled))))))
+           request)
+          (princ "\n")
+          (if body
+              (progn
+                (princ body)
+                (princ "\n")
+                (princ "\n")))
+          (mapc 
+           (function
+            (lambda (pair)
+              (princ (format "Unhandled data: %S\n" pair))))
+           unhandled))))))
 
 
 (defun nnfb-request-group (group &optional server fast info)
