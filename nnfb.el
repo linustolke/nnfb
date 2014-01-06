@@ -79,6 +79,7 @@ each session in an assoc list")
 
     
 (defun nnfb-get (what &optional token)
+  "Retrieve the request WHAT from the server."
   (message "nnfb-get %s" what)
   (let* (done
          (add-for-token
@@ -302,9 +303,39 @@ Expects the standard-output to be set up."
   (let ((pair (assoc server nnfb-sessions)))
     (cdr pair)))
 
-(defun nnfb-request-article (&rest rest)
-  "Required function"
-  (signal 'not-implemented-yet nil))
+(defun nnfb-request-article (article &optional group server to-buffer)
+  "Required function."
+  (let* ((id (cond
+              ((stringp article) article)
+              ((integerp article) (aref (cdr (assoc nnfb-current-group-name 
+                                                    nnfb-all-group-mappings))
+                                        article))))
+         (request (nnfb-get id (nnfb-get-token server)))
+         (buffer (or to-buffer (get-buffer nntp-server-buffer))))
+    (let ((standard-output buffer))
+      (save-excursion
+        (set-buffer buffer)
+        (mapc
+         (function
+          (lambda (pair)
+            (cond
+             ((string= "id" (car pair)))
+             ((string= "comment" (car pair)))
+             ((string= "actions" (car pair)))
+             ((string= "from" (car pair))
+              (princ (format "%s\n" (cdr (assoc "name" (cdr pair))))))
+             ((string= "to" (car pair))
+              (princ "To:")
+              (mapc
+               (function
+                (lambda (person)
+                  (princ (format " %s," (cdr (assoc "name" person))))))
+               (cdr (assoc "data" (cdr pair))))
+              (princ "\n"))
+             (t
+              (princ (format "Unhandled data: %S\n" pair))))))
+         request)))))
+
 
 (defun nnfb-request-group (group &optional server fast info)
   "Required function"
