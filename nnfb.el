@@ -24,9 +24,9 @@ each session in an assoc list")
   (cond
    ((looking-at "\"")
     (read))
-   ((looking-at "[0-9][0-9]*")
+   ((looking-at "[0-9][.0-9]*")
     (prog1
-        (string-to-int (buffer-substring (match-beginning 0) (match-end 0)))
+        (string-to-number (buffer-substring (match-beginning 0) (match-end 0)))
       (goto-char (match-end 0))))
    ((looking-at "{")
     (forward-char)
@@ -217,7 +217,7 @@ Expects the standard-output to be set up."
                   (substring text 0 60)
                 text))
          (first-line (if (string-match "\\(.*\\)\n" beg)
-                         (match-group 1 beg)
+                         (substring beg (match-beginning 1) (match-end 1))
                        beg)))
     (if (or fetch-old
             (memq index articles))
@@ -227,7 +227,7 @@ Expects the standard-output to be set up."
                          (cdr (assoc "name" (cdr (assoc "from" message))))
                          "date"
                          id
-                         "refernces"
+                         "references"
                          "chars"
                          (1+ (/ (length text) 62))
                          ""             ; xref
@@ -306,7 +306,7 @@ Expects the standard-output to be set up."
     (cdr pair)))
 
 (defun nnfb-join-string (elements)
-  "Join the elements in elements into a comma-separated string"
+  "Join the elements in ELEMENTS (a sequence) into a comma-separated string."
   (apply (function concat)
          (apply (function append)
                 (list (car elements))
@@ -353,8 +353,27 @@ Expects the standard-output to be set up."
                 (princ (cdr pair))
                 (princ "\n"))
                ((string= "created_time" (car pair)))
+               ((and (string= "application" (car pair))
+                     (assoc "name" (cdr pair)))
+                (princ "Application: ")
+                (princ (cdr (assoc "name" (cdr pair))))
+                (princ "\n"))
                ((and (string= "type" (car pair))
                      (string= "status" (cdr pair))))
+               ((and (string= "privacy" (car pair))
+                     (string= "value" (car (car (cdr pair))))))
+               ((and (string= "likes" (car pair))
+                     (assoc "data" (cdr pair)))
+                (let ((arr (cdr (assoc "data" (cdr pair)))))
+                  (princ "Likes: ")
+                  (princ (nnfb-join-string
+                          (mapcar
+                           (function
+                            (lambda (alike)
+                              (cdr (assoc "name" alike))))
+                           arr)))
+                  (princ "\n")))
+                
                (t
                 (setq unhandled (cons pair unhandled))))))
            request)
@@ -368,7 +387,8 @@ Expects the standard-output to be set up."
            (function
             (lambda (pair)
               (princ (format "Unhandled data: %S\n" pair))))
-           unhandled))))))
+           unhandled)
+          t)))))
 
 
 (defun nnfb-request-group (group &optional server fast info)
